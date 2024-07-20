@@ -29,7 +29,9 @@
 #You can use relevant loops for batch traversal. Here, we only set the credentials and region for one account.
 Set-AWSCredential -ProfileName <AccountName>
 Set-DefaultAWSRegion -Region ap-southeast-1
- 
+
+#the File you want to remove 
+$filepath="$($volume.Name)Users\xin\Desktop\test\C-00000291*.sys"
 #Step 1: 定义新实例的ID
 #Define the new instance ID.
 $newInstanceId = "i-XXXXXXXXXX"
@@ -37,18 +39,19 @@ $newInstanceId = "i-XXXXXXXXXX"
 $arr=@("i-XXXXXXXXXXX")
 #not recommend use non-accurate filter 
 #$instances = Get-EC2Instance -Filter @{ Name = 'platform'; Values = 'windows' }
+
 #get accurate Instnaces
 $instances = Get-EC2Instance -InstanceID $arr
 
 foreach ($instance in $instances.Instances) {
 $instanceVolumes = @()
 if($instance.InstanceId -eq $newInstanceId ) {continue}
-   $systemVolume = $instance.BlockDeviceMappings | Where-Object { $_.DeviceName -eq '/dev/sda1' }
-   $instanceVolumes += [PSCustomObject]@{
-       InstanceId = $instance.InstanceId
-       VolumeId   = $systemVolume.Ebs.VolumeId
-   }
-    Write-Output $instance.InstanceID
+   $systemVolume = $instance.BlockDeviceMappings | Where-Object { $_.DeviceName -eq '/dev/sda1' }
+   $instanceVolumes += [PSCustomObject]@{
+       InstanceId = $instance.InstanceId
+       VolumeId   = $systemVolume.Ebs.VolumeId
+   }
+    Write-Output $instance.InstanceID
 
 
 
@@ -56,28 +59,31 @@ if($instance.InstanceId -eq $newInstanceId ) {continue}
 #Step 2: 停止实例并解绑"安装了CrowdStrike Agent windows instance"的系统卷
 #Stop the instance and detach the system volume of the "CrowdStrike Agent installed Windows instance".
 foreach ($iv in $instanceVolumes) {
-   Write-Output "Stopping instance $($iv.InstanceId)..."
-   Stop-EC2Instance -InstanceId $iv.InstanceId -Force -Confirm:$false
-   while ((Get-EC2Instance -InstanceId $iv.InstanceId).instances[0].State.Name -ne 'stopped') {
-       Start-Sleep -Seconds 10
-   }
-   Write-Output "Detaching volume $($iv.VolumeId) from instance $($iv.InstanceId)..."
-   Dismount-EC2Volume -VolumeId $iv.VolumeId -Force
+   Write-Output "Stopping instance $($iv.InstanceId)..."
+   Stop-EC2Instance -InstanceId $iv.InstanceId -Force -Confirm:$false
+   while ((Get-EC2Instance -InstanceId $iv.InstanceId).instances[0].State.Name -ne 'stopped') {
+       Start-Sleep -Seconds 10
+   }
+   Write-Output "Detaching volume $($iv.VolumeId) from instance $($iv.InstanceId)..."
+   Dismount-EC2Volume -VolumeId $iv.VolumeId -Force
 }
 #Step 3: 挂载卷到新实例
 #Attach the volume to the new instance.
 
-foreach ($iv in $instanceVolumes) {
-   Write-Output "Attaching volume $($iv.VolumeId) to new instance $newInstanceId..."
-   while ((get-EC2Volume -VolumeId $iv.VolumeId).State -ne 'available') {
-        Start-Sleep -Seconds 10
-   }
-   add-EC2Volume -VolumeId $iv.VolumeId -InstanceId $newInstanceId -Device "/dev/sdf"
 
-   while ((get-EC2Volume -VolumeId $iv.VolumeId).State -ne 'in-use') {
-        Start-Sleep -Seconds 10
-   }
-    # 等待卷完全挂载
+
+
+foreach ($iv in $instanceVolumes) {
+   Write-Output "Attaching volume $($iv.VolumeId) to new instance $newInstanceId..."
+   while ((get-EC2Volume -VolumeId $iv.VolumeId).State -ne 'available') {
+        Start-Sleep -Seconds 10
+   }
+   add-EC2Volume -VolumeId $iv.VolumeId -InstanceId $newInstanceId -Device "/dev/sdf"
+
+   while ((get-EC2Volume -VolumeId $iv.VolumeId).State -ne 'in-use') {
+        Start-Sleep -Seconds 10
+   }
+    # 等待卷完全挂载
 }
 
 
@@ -90,34 +96,34 @@ foreach ($iv in $instanceVolumes) {
 #Delete files in the specified path on the new instance.
 
 
-   $mountedVolumes = Get-WmiObject -Query "SELECT * FROM Win32_Volume WHERE DriveType = 3"
-   foreach ($volume in $mountedVolumes) {
-       $path = "$($volume.Name)Windows\System32\*.png"
-       #$path = "$($volume.Name)Users\xin\Desktop\test\C-0*.sys"
-        #Write-Output "Deleting files in $path..."
-       if (Test-Path $path) {
-           Write-Output "Deleting files in $path..."
-           Get-ChildItem -Path $path -Force | Write-Output 
-           #Get-ChildItem -Path $path -Force | Remove-Item -Force
-       }
-   }
- 
+   $mountedVolumes = Get-WmiObject -Query "SELECT * FROM Win32_Volume WHERE DriveType = 3"
+   foreach ($volume in $mountedVolumes) {
+        
+        $path = $filepath
+        #Write-Output "Deleting files in $path..."
+       if (Test-Path $path) {
+           Write-Output "Deleting files in $path..."
+           Get-ChildItem -Path $path -Force | Write-Output 
+           Get-ChildItem -Path $path -Force | Remove-Item -Force
+       }
+   }
+ 
 #Step 5: 卸载卷并重新挂载到原始实例
 #Detach the volume and reattach it to the original instance.
 foreach ($iv in $instanceVolumes) {
-   Write-Output "Detaching volume $($iv.VolumeId) from new instance $newInstanceId..."
-   Dismount-EC2Volume -VolumeId $iv.VolumeId -InstanceId $newInstanceId -Force
-   while ((get-EC2Volume -VolumeId $iv.VolumeId).State -ne 'available') {
-        Start-Sleep -Seconds 10
-   }# 等待卷完全卸载
-   Write-Output "Reattaching volume $($iv.VolumeId) to original instance $($iv.InstanceId)..."
-   add-EC2Volume -VolumeId $iv.VolumeId -InstanceId $iv.InstanceId -Device "/dev/sda1"
+   Write-Output "Detaching volume $($iv.VolumeId) from new instance $newInstanceId..."
+   Dismount-EC2Volume -VolumeId $iv.VolumeId -InstanceId $newInstanceId -Force
+   while ((get-EC2Volume -VolumeId $iv.VolumeId).State -ne 'available') {
+        Start-Sleep -Seconds 10
+   }# 等待卷完全卸载
+   Write-Output "Reattaching volume $($iv.VolumeId) to original instance $($iv.InstanceId)..."
+   add-EC2Volume -VolumeId $iv.VolumeId -InstanceId $iv.InstanceId -Device "/dev/sda1"
 }
 #Step 6: 启动原始实例
 #Start the original instance.
 
 foreach ($iv in $instanceVolumes) {
-   Write-Output "Starting instance $($iv.InstanceId)..."
-   Start-EC2Instance -InstanceId $iv.InstanceId
+   Write-Output "Starting instance $($iv.InstanceId)..."
+   Start-EC2Instance -InstanceId $iv.InstanceId
 }
 }
