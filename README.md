@@ -1,5 +1,26 @@
 # CrowdStrike-Windows-BlueScreen-rememdiation
-On Friday of this week, that is, July 19th, a Crowd Strike Agent issue occurred, causing Windows to have a blue screen. To ensure an efficient and excellent operation and maintenance experience of the cloud environment, here is a one-stop suggestion Remidiation for major cloud Providers.  
+本周五，即7月19日，发生了一起CrowdStrike Agent问题，导致Windows出现蓝屏。为确保云环境的高效和优质的运维体验，以下是针对主要云服务提供商的一站式修复建议。
+
+On Friday of this week, that is, July 19th, a CrowdStrike Agent issue occurred, causing Windows to have a blue screen. To ensure an efficient and excellent operation and maintenance experience of the cloud environment, here is a one-stop remediation suggestion for major cloud providers.
+
+The following are suggestions we found on our official website from CrowdStrike. They may be officially revised by CrowdStrike. Please refer to the official website link for details.
+https://supportportal.crowdstrike.com/s/article/Tech-Alert-Windows-crashes-related-to-Falcon-Sensor-2024-07-19
+
+==================================================================
+
+The official workaround is now confirmed as follows:
+
+Boot Windows into Safe Mode or the Windows Recovery Environment.
+
+Navigate to the C:\Windows\System32\drivers\CrowdStrike directory.
+
+Locate the file matching “C-00000291*.sys” and delete it.
+
+Boot the host normally.
+
+==================================================================
+
+For more information, please refer to the following link:
 
 
 
